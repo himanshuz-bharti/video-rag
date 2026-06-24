@@ -25,24 +25,26 @@ The system operates in two core pipelines: **Ingestion** (extracting, describing
 
 ```mermaid
 graph TD
-    subgraph Ingestion Pipeline
-        A[YouTube Video Link] -->|yt-dlp| B(Download MP4)
-        B -->|OpenCV Frame Reader| C{Deduplication Check}
-        C -->|Histogram Similarity < Threshold| D[Extract Keyframe JPG]
-        C -->|Similar| E[Skip Frame]
-        D -->|on_frame_extracted callback| F[Show Live in UI Gallery]
-        D -->|Vision Model: Gemini/Ollama| G(Generate 20-word visual description)
-        G -->|Embedding Model: nomic/gemini| H(Generate 768d vector)
-        H -->|ChromaDB| I[(Persistent Vector DB)]
+    subgraph Ingestion["Ingestion Pipeline"]
+        A["YouTube Video Link"] -->|"yt-dlp"| B("Download MP4")
+        B -->|"OpenCV Frame Reader"| C{"Deduplication Check"}
+        C -->|"Similarity < Threshold"| D["Extract Keyframe JPG"]
+        C -->|"Similar"| E["Skip Frame"]
+        D -->|"on_frame_extracted callback"| F["Show Live in UI Gallery"]
+        D -->|"Vision Model"| G("Generate Visual Description")
+        G -->|"Embedding Model"| H("Generate 768d Vector")
     end
-    
-    subgraph RAG Q&A Pipeline
-        J[User Question] -->|Embedding Model| K(Generate Query Vector)
-        K -->|Vector Distance Query| I
-        I -->|Retrieve top k matching descriptions| L(Construct Context Prompt)
-        L -->|Gemini LLM Synthesis| M[Detailed Answer with timestamp citations]
-        M -->|FastAPI JSON Response| N[Render in Chat Interface + Clickable Sources]
+
+    H -->|"Save Embeddings"| I[("ChromaDB Vector DB")]
+
+    subgraph QAPipeline["RAG Q&A Pipeline"]
+        J["User Question"] -->|"Embedding Model"| K("Generate Query Vector")
+        L["Construct Context Prompt"] -->|"Gemini LLM Synthesis"| M["Detailed Answer with citations"]
+        M -->|"FastAPI JSON Response"| N["Render in Chat UI"]
     end
+
+    K -->|"Vector Search"| I
+    I -->|"Retrieve Top-K Matches"| L
 ```
 
 ---
