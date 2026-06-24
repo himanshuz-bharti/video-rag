@@ -7,10 +7,16 @@ requires-python = ">=3.12"
 dependencies = [
     "chromadb>=1.5.9",
     "google-genai>=2.9.0",
+    "imagehash>=4.3.2",
     "ollama>=0.6.2",
     "opencv-python-headless>=4.13.0.92",
+    "pillow>=12.2.0",
     "python-dotenv>=1.2.2",
+    "scikit-image>=0.26.0",
     "static-ffmpeg>=3.0",
     "youtube-transcript-api>=1.2.4",
     "yt-dlp>=2026.6.9",
+    "fastapi>=0.111.0",
+    "uvicorn>=0.30.0",
 ]
+

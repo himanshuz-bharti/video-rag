@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video RAG Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #0B0F19;
+            --panel-bg: rgba(30, 41, 59, 0.45);
+            --panel-border: rgba(255, 255, 255, 0.08);
+            --accent-primary: #8B5CF6;
+            --accent-secondary: #3B82F6;
+            --accent-gradient: linear-gradient(135deg, #8B5CF6 0%, #3B82F6 100%);
+            --text-main: #F1F5F9;
+            --text-muted: #94A3B8;
+            --text-success: #10B981;
+            --text-danger: #EF4444;
+            --transition-speed: 0.3s;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(139, 92, 246, 0.12) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.12) 0px, transparent 50%);
+        }
+
+        header {
+            width: 100%;
+            max-width: 1000px;
+            padding: 2.5rem 1.5rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo-section h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2.2rem;
+            font-weight: 700;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+
+        .logo-section p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-top: 0.25rem;
+        }
+
+        .clear-btn {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+            color: #FCA5A5;
+            padding: 0.65rem 1.25rem;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--transition-speed);
+            font-size: 0.9rem;
+        }
+
+        .clear-btn:hover {
+            background: rgba(239, 68, 68, 0.2);
+            border-color: rgba(239, 68, 68, 0.5);
+            transform: translateY(-2px);
+        }
+
+        main {
+            width: 100%;
+            max-width: 1000px;
+            padding: 0 1.5rem 3rem;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .glass-panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 24px;
+            padding: 2rem;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            transition: all var(--transition-speed);
+        }
+
+        /* Ingestion Step Form */
+        .input-row {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .input-field {
+            flex: 1;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--panel-border);
+            border-radius: 14px;
+            color: var(--text-main);
+            padding: 1rem 1.25rem;
+            font-family: inherit;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color var(--transition-speed);
+        }
+
+        .input-field:focus {
+            border-color: var(--accent-secondary);
+        }
+
+        .action-btn {
+            background: var(--accent-gradient);
+            border: none;
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 14px;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all var(--transition-speed);
+            box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+        }
+
+        .action-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
+        }
+
+        .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        /* Processing/Status Section */
+        .status-container {
+            display: none;
+            align-items: center;
+            gap: 1.25rem;
+            margin-top: 1.5rem;
+            padding: 1rem 1.25rem;
+            background: rgba(15, 23, 42, 0.4);
+            border-radius: 14px;
+            border: 1px solid var(--panel-border);
+        }
+
+        .status-spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            border-top-color: var(--accent-secondary);
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        .status-text {
+            font-size: 0.95rem;
+            font-weight: 500;
+        }
+
+        /* Chat/Query Section */
+        .chat-section {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            min-height: 350px;
+        }
+
+        .chat-header {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.4rem;
+            font-weight: 600;
+            border-bottom: 1px solid var(--panel-border);
+            padding-bottom: 0.75rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-history {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            max-height: 500px;
+            overflow-y: auto;
+            padding-right: 0.5rem;
+        }
+
+        /* Customize Scrollbars */
+        .chat-history::-webkit-scrollbar {
+            width: 6px;
+        }
+        .chat-history::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .chat-history::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+
+        .msg {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            animation: fadeIn 0.4s ease;
+        }
+
+        .msg.user .bubble {
+            background: rgba(59, 130, 246, 0.15);
+            border: 1px solid rgba(59, 130, 246, 0.25);
+            align-self: flex-end;
+            border-radius: 18px 18px 2px 18px;
+        }
+
+        .msg.assistant .bubble {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            align-self: flex-start;
+            border-radius: 18px 18px 18px 2px;
+            width: 100%;
+        }
+
+        .bubble {
+            padding: 1rem 1.25rem;
+            max-width: 85%;
+            font-size: 0.98rem;
+            line-height: 1.5;
+            color: var(--text-main);
+        }
+
+        .sources-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin: 0.75rem 0 0.5rem 1.25rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Sources Horizontal Gallery */
+        .sources-grid {
+            display: flex;
+            gap: 1rem;
+            overflow-x: auto;
+            padding: 0.25rem 0 0.75rem 1.25rem;
+        }
+
+        .sources-grid::-webkit-scrollbar {
+            height: 6px;
+        }
+        .sources-grid::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+
+        .source-card {
+            flex: 0 0 160px;
+            background: rgba(15, 23, 42, 0.4);
+            border: 1px solid var(--panel-border);
+            border-radius: 12px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all var(--transition-speed);
+        }
+
+        .source-card:hover {
+            transform: translateY(-3px);
+            border-color: var(--accent-secondary);
+        }
+
+        .source-card img {
+            width: 100%;
+            height: 90px;
+            object-fit: cover;
+            border-bottom: 1px solid var(--panel-border);
+        }
+
+        .source-card-details {
+            padding: 0.5rem;
+            font-size: 0.75rem;
+            display: flex;
+            justify-content: space-between;
+            color: var(--text-muted);
+        }
+
+        .source-card-timestamp {
+            font-weight: 600;
+            color: var(--accent-secondary);
+        }
+
+        /* Modal Lightbox */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(11, 15, 25, 0.95);
+            backdrop-filter: blur(8px);
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.25s ease;
+        }
+
+        .modal-content {
+            position: relative;
+            max-width: 90%;
+            max-height: 85%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .modal-img {
+            max-width: 100%;
+            max-height: 70vh;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--panel-border);
+        }
+
+        .modal-caption {
+            color: var(--text-main);
+            font-weight: 500;
+            font-size: 1.1rem;
+            text-align: center;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: -2.5rem;
+            right: 0;
+            color: white;
+            font-size: 2rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color var(--transition-speed);
+        }
+
+        .modal-close:hover {
+            color: var(--text-danger);
+        }
+
+        /* Utility states */
+        .empty-history-text {
+            color: var(--text-muted);
+            text-align: center;
+            margin: auto;
+            font-size: 0.95rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo-section">
+            <h1>Video RAG</h1>
+            <p>Ingest and query YouTube videos using Frame embeddings</p>
+        </div>
+        <button class="clear-btn" id="clearBtn">Clear Session</button>
+    </header>
+
+    <main>
+        <!-- Step 1: Process Video Panel -->
+        <section class="glass-panel">
+            <h2>Step 1: Enter Video Link</h2>
+            <div class="input-row">
+                <input type="text" class="input-field" id="ytUrlInput" placeholder="https://www.youtube.com/watch?v=..." autocomplete="off">
+                <button class="action-btn" id="processBtn">Process Video</button>
+            </div>
+            
+            <div class="status-container" id="statusContainer">
+                <div class="status-spinner" id="statusSpinner"></div>
+                <div class="status-text" id="statusText">Processing initialized...</div>
+                <div class="status-controls" id="statusControls" style="display: flex; gap: 0.5rem; margin-left: auto;">
+                    <button class="clear-btn" id="pauseBtn" style="padding: 0.4rem 0.8rem; border-radius: 8px; font-size: 0.8rem; display: none; margin: 0;">Pause</button>
+                    <button class="action-btn" id="resumeBtn" style="padding: 0.4rem 0.8rem; border-radius: 8px; font-size: 0.8rem; display: none; box-shadow: none; margin: 0;">Resume</button>
+                </div>
+            </div>
+            
+            <div class="extraction-gallery-container" id="extractionGalleryContainer" style="display: none; margin-top: 1.5rem;">
+                <h3 style="font-size: 0.9rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.75rem;">Extracted Frames Preview:</h3>
+                <div class="sources-grid" id="extractionGallery" style="padding-left: 0; padding-bottom: 0.25rem;"></div>
+            </div>
+        </section>
+
+        <!-- Step 2: Query / Chat Panel -->
+        <section class="glass-panel chat-section">
+            <div class="chat-header">
+                <span>Step 2: Ask Questions</span>
+                <span style="font-size: 0.85rem; color: var(--text-muted);" id="videoLoadedLabel">No video loaded</span>
+            </div>
+            
+            <div class="chat-history" id="chatHistory">
+                <div class="empty-history-text" id="emptyHistoryText">Ingest a video first to ask questions.</div>
+            </div>
+
+            <div class="input-row">
+                <input type="text" class="input-field" id="queryInput" placeholder="Ask something about the video..." disabled autocomplete="off">
+                <button class="action-btn" id="queryBtn" disabled>Ask</button>
+            </div>
+        </section>
+    </main>
+
+    <!-- Lightbox Modal -->
+    <div class="modal" id="lightboxModal">
+        <div class="modal-content">
+            <span class="modal-close" id="modalClose">&times;</span>
+            <img class="modal-img" id="modalImg" src="" alt="Source frame">
+            <div class="modal-caption" id="modalCaption">Frame details</div>
+        </div>
+    </div>
+
+    <script>
+        const ytUrlInput = document.getElementById('ytUrlInput');
+        const processBtn = document.getElementById('processBtn');
+        const statusContainer = document.getElementById('statusContainer');
+        const statusSpinner = document.getElementById('statusSpinner');
+        const statusText = document.getElementById('statusText');
+        const clearBtn = document.getElementById('clearBtn');
+        
+        const pauseBtn = document.getElementById('pauseBtn');
+        const resumeBtn = document.getElementById('resumeBtn');
+        const extractionGalleryContainer = document.getElementById('extractionGalleryContainer');
+        const extractionGallery = document.getElementById('extractionGallery');
+        
+        const videoLoadedLabel = document.getElementById('videoLoadedLabel');
+        const chatHistory = document.getElementById('chatHistory');
+        const emptyHistoryText = document.getElementById('emptyHistoryText');
+        const queryInput = document.getElementById('queryInput');
+        const queryBtn = document.getElementById('queryBtn');
+        
+        const lightboxModal = document.getElementById('lightboxModal');
+        const modalImg = document.getElementById('modalImg');
+        const modalCaption = document.getElementById('modalCaption');
+        const modalClose = document.getElementById('modalClose');
+
+        let statusPollInterval = null;
+
+        // Initialize state check
+        checkCurrentStatus();
+
+        // Process Video
+        processBtn.addEventListener('click', async () => {
+            const url = ytUrlInput.value.trim();
+            if (!url) return alert('Please enter a YouTube URL.');
+
+            processBtn.disabled = true;
+            ytUrlInput.disabled = true;
+            statusContainer.style.display = 'flex';
+            statusSpinner.style.display = 'block';
+            pauseBtn.style.display = 'block';
+            pauseBtn.disabled = false;
+            resumeBtn.style.display = 'none';
+            statusText.innerText = 'Initializing processing...';
+            statusText.style.color = 'var(--text-main)';
+
+            try {
+                const response = await fetch('/api/process', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ youtube_url: url })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || 'Failed to start processing.');
+                }
+
+                // Poll status API in background
+                startStatusPolling();
+            } catch (err) {
+                statusText.innerText = `Error: ${err.message}`;
+                statusText.style.color = 'var(--text-danger)';
+                statusSpinner.style.display = 'none';
+                pauseBtn.style.display = 'none';
+                processBtn.disabled = false;
+                ytUrlInput.disabled = false;
+            }
+        });
+
+        // Pause Ingestion
+        pauseBtn.addEventListener('click', async () => {
+            pauseBtn.disabled = true;
+            statusText.innerText = 'Requesting pause, finishing current step...';
+            try {
+                const res = await fetch('/api/pause', { method: 'POST' });
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.detail || 'Failed to pause.');
+                }
+            } catch (err) {
+                alert(`Pause failed: ${err.message}`);
+                pauseBtn.disabled = false;
+            }
+        });
+
+        // Resume Ingestion
+        resumeBtn.addEventListener('click', async () => {
+            resumeBtn.disabled = true;
+            statusSpinner.style.display = 'block';
+            statusText.innerText = 'Resuming extraction...';
+            statusText.style.color = 'var(--text-main)';
+            try {
+                const res = await fetch('/api/resume', { method: 'POST' });
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.detail || 'Failed to resume.');
+                }
+                resumeBtn.disabled = false;
+                startStatusPolling();
+            } catch (err) {
+                alert(`Resume failed: ${err.message}`);
+                resumeBtn.disabled = false;
+            }
+        });
+
+        // Query Question
+        queryBtn.addEventListener('click', sendQuery);
+        queryInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendQuery();
+        });
+
+        async function sendQuery() {
+            const query = queryInput.value.trim();
+            if (!query || queryBtn.disabled) return;
+
+            queryBtn.disabled = true;
+            queryInput.disabled = true;
+
+            // Append user bubble
+            appendMessage('user', query);
+            queryInput.value = '';
+
+            try {
+                const response = await fetch('/api/query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query_text: query })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || 'Failed to get answer.');
+                }
+
+                const data = await response.json();
+                appendMessage('assistant', data.answer, data.sources);
+            } catch (err) {
+                appendMessage('assistant', `Error generating response: ${err.message}`);
+            } finally {
+                queryBtn.disabled = false;
+                queryInput.disabled = false;
+                queryInput.focus();
+            }
+        }
+
+        // Helper: Append Message Bubble
+        function appendMessage(sender, text, sources = []) {
+            if (emptyHistoryText) emptyHistoryText.style.display = 'none';
+
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `msg ${sender}`;
+
+            const bubbleDiv = document.createElement('div');
+            bubbleDiv.className = 'bubble';
+            bubbleDiv.innerText = text;
+            msgDiv.appendChild(bubbleDiv);
+
+            // If sources present, append them as cards under the bubble
+            if (sources && sources.length > 0) {
+                const title = document.createElement('div');
+                title.className = 'sources-title';
+                title.innerText = 'Sources / Reference Frames:';
+                msgDiv.appendChild(title);
+
+                const sourcesGrid = document.createElement('div');
+                sourcesGrid.className = 'sources-grid';
+
+                sources.forEach(src => {
+                    const card = document.createElement('div');
+                    card.className = 'source-card';
+                    card.innerHTML = `
+                        <img src="${src.image_url}" alt="Frame at ${src.timestamp_str}">
+                        <div class="source-card-details">
+                            <span class="source-card-timestamp">${src.timestamp_str}</span>
+                            <span>Frame ${src.frame_ct}</span>
+                        </div>
+                    `;
+                    card.addEventListener('click', () => openLightbox(src.image_url, `Frame ${src.frame_ct} at timestamp ${src.timestamp_str}`));
+                    sourcesGrid.appendChild(card);
+                });
+
+                msgDiv.appendChild(sourcesGrid);
+            }
+
+            chatHistory.appendChild(msgDiv);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        // Polling status
+        function startStatusPolling() {
+            if (statusPollInterval) clearInterval(statusPollInterval);
+            
+            statusPollInterval = setInterval(async () => {
+                const status = await checkCurrentStatus();
+                if (status === 'success' || status === 'error' || status === 'idle' || status === 'paused') {
+                    clearInterval(statusPollInterval);
+                }
+            }, 2000);
+        }
+
+        async function checkCurrentStatus() {
+            try {
+                const res = await fetch('/api/status');
+                const data = await res.json();
+
+                statusText.innerText = data.message || 'Status unknown.';
+                
+                // Update extracted frames gallery in real time
+                if (data.extracted_frames && data.extracted_frames.length > 0) {
+                    extractionGalleryContainer.style.display = 'block';
+                    extractionGallery.innerHTML = '';
+                    data.extracted_frames.forEach(src => {
+                        const card = document.createElement('div');
+                        card.className = 'source-card';
+                        card.innerHTML = `
+                            <img src="${src.image_url}" alt="Frame ${src.frame_ct}">
+                            <div class="source-card-details">
+                                <span class="source-card-timestamp">${src.timestamp.toFixed(1)}s</span>
+                                <span>Frame ${src.frame_ct}</span>
+                            </div>
+                        `;
+                        card.addEventListener('click', () => openLightbox(src.image_url, `Frame ${src.frame_ct} at ${src.timestamp.toFixed(1)}s`));
+                        extractionGallery.appendChild(card);
+                    });
+                } else {
+                    extractionGalleryContainer.style.display = 'none';
+                }
+
+                if (data.status === 'processing' || data.status === 'indexing') {
+                    processBtn.disabled = true;
+                    ytUrlInput.disabled = true;
+                    statusContainer.style.display = 'flex';
+                    statusSpinner.style.display = 'block';
+                    if (data.status === 'indexing') {
+                        pauseBtn.style.display = 'none';
+                    } else {
+                        pauseBtn.style.display = 'block';
+                        pauseBtn.disabled = false;
+                    }
+                    resumeBtn.style.display = 'none';
+                    statusText.style.color = 'var(--text-main)';
+                    
+                    queryInput.disabled = true;
+                    queryBtn.disabled = true;
+                    return data.status;
+                } else if (data.status === 'paused') {
+                    processBtn.disabled = false;
+                    ytUrlInput.disabled = false;
+                    statusContainer.style.display = 'flex';
+                    statusSpinner.style.display = 'none';
+                    pauseBtn.style.display = 'none';
+                    resumeBtn.style.display = 'block';
+                    resumeBtn.disabled = false;
+                    statusText.style.color = '#F59E0B'; // Warn color
+                    
+                    // Enable QA input (users can ask questions on frames indexed so far)
+                    queryInput.disabled = false;
+                    queryBtn.disabled = false;
+                    videoLoadedLabel.innerText = 'Subset Indexed (Paused)';
+                    videoLoadedLabel.style.color = '#F59E0B';
+                    if (emptyHistoryText && emptyHistoryText.innerText.includes('Ingest')) {
+                        emptyHistoryText.innerText = 'Querying is enabled for frames indexed so far.';
+                    }
+                    return 'paused';
+                } else if (data.status === 'success') {
+                    processBtn.disabled = false;
+                    ytUrlInput.disabled = false;
+                    statusSpinner.style.display = 'none';
+                    pauseBtn.style.display = 'none';
+                    resumeBtn.style.display = 'none';
+                    statusText.style.color = 'var(--text-success)';
+                    
+                    // Enable QA input
+                    queryInput.disabled = false;
+                    queryBtn.disabled = false;
+                    videoLoadedLabel.innerText = 'Video Indexed';
+                    videoLoadedLabel.style.color = 'var(--text-success)';
+                    if (emptyHistoryText) emptyHistoryText.innerText = 'Ask any question about the indexed video.';
+                    return 'success';
+                } else if (data.status === 'error') {
+                    processBtn.disabled = false;
+                    ytUrlInput.disabled = false;
+                    statusSpinner.style.display = 'none';
+                    pauseBtn.style.display = 'none';
+                    resumeBtn.style.display = 'none';
+                    statusText.style.color = 'var(--text-danger)';
+                    return 'error';
+                } else {
+                    statusContainer.style.display = 'none';
+                    videoLoadedLabel.innerText = 'No video loaded';
+                    videoLoadedLabel.style.color = 'var(--text-muted)';
+                    queryInput.disabled = true;
+                    queryBtn.disabled = true;
+                    return 'idle';
+                }
+            } catch (err) {
+                console.error('Failed to retrieve status:', err);
+                return 'error';
+            }
+        }
+
+        // Cleanup
+        clearBtn.addEventListener('click', async () => {
+            if (!confirm('Are you sure you want to delete all cached videos, frames, and database indexes? This will reset the workspace.')) {
+                return;
+            }
+
+            clearBtn.disabled = true;
+            try {
+                const response = await fetch('/api/cleanup', { method: 'POST' });
+                const data = await response.json();
+                alert(data.message);
+                
+                // Reset UI state
+                chatHistory.innerHTML = '<div class="empty-history-text" id="emptyHistoryText">Ingest a video first to ask questions.</div>';
+                videoLoadedLabel.innerText = 'No video loaded';
+                videoLoadedLabel.style.color = 'var(--text-muted)';
+                queryInput.disabled = true;
+                queryBtn.disabled = true;
+                ytUrlInput.value = '';
+                statusContainer.style.display = 'none';
+                extractionGalleryContainer.style.display = 'none';
+                
+                checkCurrentStatus();
+            } catch (err) {
+                alert(`Clear failed: ${err.message}`);
+            } finally {
+                clearBtn.disabled = false;
+            }
+        });
+
+        // Lightbox functionality
+        function openLightbox(imgUrl, caption) {
+            modalImg.src = imgUrl;
+            modalCaption.innerText = caption;
+            lightboxModal.style.display = 'flex';
+        }
+
+        modalClose.addEventListener('click', () => {
+            lightboxModal.style.display = 'none';
+        });
+
+        lightboxModal.addEventListener('click', (e) => {
+            if (e.target === lightboxModal) {
+                lightboxModal.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
