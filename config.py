@@ -19,7 +19,7 @@ OLLAMA_EMBED_MODEL: str = "nomic-embed-text" # Standard high-quality local embed
 
 FRAME_INTERVAL_SECONDS: int = 10
 JPEG_QUALITY: int = 85
-VIDEO_FORMAT: str = "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]"
+VIDEO_FORMAT: str = "bestvideo[height<=720][vcodec^=avc1]+bestaudio[ext=m4a]/best[height<=720][vcodec^=avc1]/bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]"
 
 COLLECTION_NAME: str = "video-frames"
 TOP_K_RESULTS: int = 4
