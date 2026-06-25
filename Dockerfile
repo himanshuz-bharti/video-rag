@@ -11,11 +11,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Copy dependency definition
-COPY pyproject.toml .
+# Install uv for fast dependency resolution
+RUN pip install --no-cache-dir uv
 
-# Install Python dependencies
-RUN pip install --no-cache-dir .
+# Copy dependency definition and install only dependencies (caching layer)
+COPY pyproject.toml .
+RUN uv pip install --system --no-cache -r pyproject.toml
 
 # Copy application source files
 COPY . .
