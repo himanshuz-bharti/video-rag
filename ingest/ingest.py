@@ -19,7 +19,7 @@ from embedding import embed_text
 os.environ['CHROMA_TELEMETRY'] = "false"
 import chromadb
 
-def ingest(video_url: str, start_frame_ct: int = 0, existing_hists: list = None, pause_event = None, on_frame_extracted_callback = None, on_status_update_callback = None):
+def ingest(video_url: str, start_frame_ct: int = 0, existing_hists: list = None, pause_event = None, on_frame_extracted_callback = None, on_status_update_callback = None, provider: str = None, api_key: str = None):
     """
     Ingestion Pipeline:
     1. Downloads the YouTube video using yt-dlp.
@@ -94,14 +94,14 @@ def ingest(video_url: str, start_frame_ct: int = 0, existing_hists: list = None,
             on_status_update_callback("indexing", f"Indexing frame {idx+1}/{len(frames)} (at timestamp {timestamp_str})...")
         
         # 3a. Describe visual content using the configured Provider
-        description = describe_frame(frame_path)
+        description = describe_frame(frame_path, provider=provider, api_key=api_key)
         if not description:
             print(f"Skipping frame {frame_ct} (failed to generate description).")
             continue
         print(f"Description: {description}")
         
         # 3b. Generate text embeddings using the configured Provider
-        embedding = embed_text(description)
+        embedding = embed_text(description, provider=provider, api_key=api_key)
         if not embedding:
             print(f"Skipping frame {frame_ct} (failed to generate embedding).")
             continue

@@ -2,7 +2,7 @@ import os
 import sys
 import shutil
 from pathlib import Path
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Header
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -41,7 +41,9 @@ SESSION_STATE = {
     "youtube_url": "",
     "start_frame_ct": 0,
     "saved_hists": [],
-    "extracted_frames": []      # List of currently extracted frame objects
+    "extracted_frames": [],      # List of currently extracted frame objects
+    "api_key": None,
+    "provider": None
 }
 
 class ProcessRequest(BaseModel):
@@ -64,6 +66,8 @@ def run_ingestion_background(youtube_url: str):
         
         start_frame = SESSION_STATE["start_frame_ct"]
         hists = SESSION_STATE["saved_hists"]
+        api_key = SESSION_STATE.get("api_key")
+        provider = SESSION_STATE.get("provider")
         
         # Define a callback to populate extracted_frames list in real time
         def on_frame_extracted(frame_info):
@@ -85,7 +89,9 @@ def run_ingestion_background(youtube_url: str):
             existing_hists=hists,
             pause_event=PAUSE_EVENT,
             on_frame_extracted_callback=on_frame_extracted,
-            on_status_update_callback=on_status_update
+            on_status_update_callback=on_status_update,
+            provider=provider,
+            api_key=api_key
         )
         
         # Update checkpoint progress state
@@ -159,7 +165,12 @@ def get_status():
         }
 
 @app.post("/api/process")
-def process_video(req: ProcessRequest, background_tasks: BackgroundTasks):
+def process_video(
+    req: ProcessRequest,
+    background_tasks: BackgroundTasks,
+    x_api_key: str = Header(default=None),
+    x_provider: str = Header(default=None)
+):
     """Start downloading and indexing a video in a background thread."""
     global SESSION_STATE
     if SESSION_STATE["status"] == "processing":
@@ -171,6 +182,9 @@ def process_video(req: ProcessRequest, background_tasks: BackgroundTasks):
         SESSION_STATE["saved_hists"] = []
         SESSION_STATE["extracted_frames"] = []
         
+    SESSION_STATE["api_key"] = x_api_key
+    SESSION_STATE["provider"] = x_provider
+    
     PAUSE_EVENT.clear()
     background_tasks.add_task(run_ingestion_background, req.youtube_url)
     return {"message": "Ingestion task launched."}
@@ -187,7 +201,11 @@ def pause_extraction():
     return {"message": "Pause request sent."}
 
 @app.post("/api/resume")
-def resume_extraction(background_tasks: BackgroundTasks):
+def resume_extraction(
+    background_tasks: BackgroundTasks,
+    x_api_key: str = Header(default=None),
+    x_provider: str = Header(default=None)
+):
     """Resume indexing the current video from where it left off."""
     global SESSION_STATE
     if SESSION_STATE["status"] != "paused" and SESSION_STATE["status"] != "error":
@@ -196,19 +214,31 @@ def resume_extraction(background_tasks: BackgroundTasks):
     if not SESSION_STATE["youtube_url"]:
         raise HTTPException(status_code=400, detail="No video is currently loaded in session.")
         
+    if x_api_key:
+        SESSION_STATE["api_key"] = x_api_key
+    if x_provider:
+        SESSION_STATE["provider"] = x_provider
+        
     PAUSE_EVENT.clear()
     background_tasks.add_task(run_ingestion_background, SESSION_STATE["youtube_url"])
     return {"message": "Resume task launched."}
 
 @app.post("/api/query")
-def query_rag(req: QueryRequest):
+def query_rag(
+    req: QueryRequest,
+    x_api_key: str = Header(default=None),
+    x_provider: str = Header(default=None)
+):
     """Query the vector database and generate an answer with Gemini."""
     if not req.query_text.strip():
         raise HTTPException(status_code=400, detail="Query text cannot be empty.")
     
+    api_key = x_api_key or SESSION_STATE.get("api_key") or os.getenv("GEMINI_API_KEY")
+    provider = x_provider or SESSION_STATE.get("provider") or config.PROVIDER
+    
     try:
         from query.query import VideoRAGQuery
-        rag = VideoRAGQuery()
+        rag = VideoRAGQuery(provider=provider, api_key=api_key)
         answer, sources = rag.answer_query(req.query_text)
         
         # Map absolute frame paths to relative URLs served by FastAPI
@@ -267,7 +297,9 @@ def cleanup_session():
             "youtube_url": "",
             "start_frame_ct": 0,
             "saved_hists": [],
-            "extracted_frames": []
+            "extracted_frames": [],
+            "api_key": None,
+            "provider": None
         }
         return {"message": "Successfully deleted all video frames, videos, and cleared ChromaDB."}
     except Exception as e:

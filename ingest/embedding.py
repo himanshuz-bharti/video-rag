@@ -14,12 +14,16 @@ import config
 
 load_dotenv()
 
-def embed_text_gemini(text: str) -> list[float]:
+def embed_text_gemini(text: str, api_key: str = None) -> list[float]:
     """
     Generate text embeddings using Google's text-embedding-004 model (Cloud API).
     This model produces high-quality 768-dimensional embeddings.
     """
-    client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+    active_key = api_key or os.getenv("GEMINI_API_KEY")
+    if not active_key:
+        print("[Error] Gemini API key is missing for embed_text.")
+        return []
+    client = genai.Client(api_key=active_key)
     model_name = config.EMBED_MODEL
     try:
         response = client.models.embed_content(
@@ -51,12 +55,13 @@ def embed_text_ollama(text: str, model_name: str = None) -> list[float]:
         return []
 
 
-def embed_text(text: str) -> list[float]:
+def embed_text(text: str, provider: str = None, api_key: str = None) -> list[float]:
     """Unified entry point to embed text based on the configured PROVIDER."""
-    if config.PROVIDER == "ollama":
+    active_provider = provider or config.PROVIDER
+    if active_provider == "ollama":
         return embed_text_ollama(text)
     else:
-        return embed_text_gemini(text)
+        return embed_text_gemini(text, api_key=api_key)
 
 
 if __name__ == "__main__":

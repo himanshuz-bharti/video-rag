@@ -390,7 +390,10 @@
             <h1>Video RAG</h1>
             <p>Ingest and query YouTube videos using Frame embeddings</p>
         </div>
-        <button class="clear-btn" id="clearBtn">Clear Session</button>
+        <div style="display: flex; gap: 1rem; align-items: center;">
+            <button class="clear-btn" id="settingsBtn" style="background: rgba(139, 92, 246, 0.1); border-color: rgba(139, 92, 246, 0.25); color: #C084FC; margin: 0;">⚙️ API Settings</button>
+            <button class="clear-btn" id="clearBtn" style="margin: 0;">Clear Session</button>
+        </div>
     </header>
 
     <main>
@@ -444,6 +447,32 @@
         </div>
     </div>
 
+    <!-- Settings Modal -->
+    <div class="modal" id="settingsModal">
+        <div class="glass-panel" style="width: 100%; max-width: 450px; position: relative;">
+            <span class="modal-close" id="settingsClose" style="position: absolute; top: 1rem; right: 1.5rem; font-size: 2rem; font-weight: bold; cursor: pointer; color: white; transition: color var(--transition-speed);">&times;</span>
+            <h2 style="font-family: 'Outfit', sans-serif; font-size: 1.6rem; margin-bottom: 1.5rem; background: var(--accent-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">API Settings</h2>
+            
+            <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+                <div>
+                    <label style="display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">LLM / Embedding Provider</label>
+                    <select id="providerSelect" class="input-field" style="width: 100%; display: block; border-radius: 12px; background: rgba(15, 23, 42, 0.8); cursor: pointer;">
+                        <option value="gemini">Gemini API (Cloud)</option>
+                        <option value="ollama">Ollama (Local)</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label style="display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Gemini API Key</label>
+                    <input type="password" id="apiKeyInput" class="input-field" placeholder="Enter your Gemini API key (AIzaSy...)" style="width: 100%; border-radius: 12px;">
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.35rem;">Leave empty to fallback to server's configured environment variables.</p>
+                </div>
+                
+                <button class="action-btn" id="saveSettingsBtn" style="margin-top: 0.5rem; width: 100%;">Save Configurations</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const ytUrlInput = document.getElementById('ytUrlInput');
         const processBtn = document.getElementById('processBtn');
@@ -451,6 +480,13 @@
         const statusSpinner = document.getElementById('statusSpinner');
         const statusText = document.getElementById('statusText');
         const clearBtn = document.getElementById('clearBtn');
+        
+        const settingsBtn = document.getElementById('settingsBtn');
+        const settingsModal = document.getElementById('settingsModal');
+        const settingsClose = document.getElementById('settingsClose');
+        const providerSelect = document.getElementById('providerSelect');
+        const apiKeyInput = document.getElementById('apiKeyInput');
+        const saveSettingsBtn = document.getElementById('saveSettingsBtn');
         
         const pauseBtn = document.getElementById('pauseBtn');
         const resumeBtn = document.getElementById('resumeBtn');
@@ -467,6 +503,22 @@
         const modalImg = document.getElementById('modalImg');
         const modalCaption = document.getElementById('modalCaption');
         const modalClose = document.getElementById('modalClose');
+
+        // Load credentials from localStorage
+        providerSelect.value = localStorage.getItem('user_provider') || 'gemini';
+        apiKeyInput.value = localStorage.getItem('user_api_key') || '';
+
+        function fetchWithHeaders(url, options = {}) {
+            const headers = options.headers || {};
+            const key = localStorage.getItem('user_api_key') || '';
+            const provider = localStorage.getItem('user_provider') || 'gemini';
+            
+            headers['x-api-key'] = key;
+            headers['x-provider'] = provider;
+            
+            options.headers = headers;
+            return fetch(url, options);
+        }
 
         let statusPollInterval = null;
 
@@ -489,7 +541,7 @@
             statusText.style.color = 'var(--text-main)';
 
             try {
-                const response = await fetch('/api/process', {
+                const response = await fetchWithHeaders('/api/process', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ youtube_url: url })
@@ -517,7 +569,7 @@
             pauseBtn.disabled = true;
             statusText.innerText = 'Requesting pause, finishing current step...';
             try {
-                const res = await fetch('/api/pause', { method: 'POST' });
+                const res = await fetchWithHeaders('/api/pause', { method: 'POST' });
                 if (!res.ok) {
                     const err = await res.json();
                     throw new Error(err.detail || 'Failed to pause.');
@@ -535,7 +587,7 @@
             statusText.innerText = 'Resuming extraction...';
             statusText.style.color = 'var(--text-main)';
             try {
-                const res = await fetch('/api/resume', { method: 'POST' });
+                const res = await fetchWithHeaders('/api/resume', { method: 'POST' });
                 if (!res.ok) {
                     const err = await res.json();
                     throw new Error(err.detail || 'Failed to resume.');
@@ -566,7 +618,7 @@
             queryInput.value = '';
 
             try {
-                const response = await fetch('/api/query', {
+                const response = await fetchWithHeaders('/api/query', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ query_text: query })
@@ -645,7 +697,7 @@
 
         async function checkCurrentStatus() {
             try {
-                const res = await fetch('/api/status');
+                const res = await fetchWithHeaders('/api/status');
                 const data = await res.json();
 
                 statusText.innerText = data.message || 'Status unknown.';
@@ -752,7 +804,7 @@
 
             clearBtn.disabled = true;
             try {
-                const response = await fetch('/api/cleanup', { method: 'POST' });
+                const response = await fetchWithHeaders('/api/cleanup', { method: 'POST' });
                 const data = await response.json();
                 alert(data.message);
                 
@@ -789,6 +841,29 @@
             if (e.target === lightboxModal) {
                 lightboxModal.style.display = 'none';
             }
+        });
+
+        // Settings Modal event handlers
+        settingsBtn.addEventListener('click', () => {
+            settingsModal.style.display = 'flex';
+        });
+
+        settingsClose.addEventListener('click', () => {
+            settingsModal.style.display = 'none';
+        });
+
+        settingsModal.addEventListener('click', (e) => {
+            if (e.target === settingsModal) {
+                settingsModal.style.display = 'none';
+            }
+        });
+
+        saveSettingsBtn.addEventListener('click', () => {
+            localStorage.setItem('user_provider', providerSelect.value);
+            localStorage.setItem('user_api_key', apiKeyInput.value.trim());
+            settingsModal.style.display = 'none';
+            alert('API settings saved successfully!');
+            checkCurrentStatus();
         });
     </script>
 </body>

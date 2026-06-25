@@ -15,7 +15,10 @@ import config
 from embedding import embed_text
 load_dotenv()
 class VideoRAGQuery:
-    def __init__(self):
+    def __init__(self, provider: str = None, api_key: str = None):
+        self.provider = provider or config.PROVIDER
+        self.api_key = api_key or os.getenv("GEMINI_API_KEY")
+        
         # Initialize ChromaDB persistent client using config path
         self.chroma_client = chromadb.PersistentClient(path=str(config.CHROMA_DB_DIR))
         self.collection = self.chroma_client.get_or_create_collection(
@@ -23,14 +26,17 @@ class VideoRAGQuery:
             embedding_function=None
         )
         # Initialize Google GenAI client
-        self.gemini_client = genai.Client(api_key=config.GEMINI_API_KEY)
+        if self.api_key:
+            self.gemini_client = genai.Client(api_key=self.api_key)
+        else:
+            self.gemini_client = None
     def search_similar_frames(self, query_text: str, top_k: int = None) -> dict:
         """Query ChromaDB for most similar frame descriptions."""
         if top_k is None:
             top_k = config.TOP_K_RESULTS
             
         # 1. Embed user query using the same embedding function
-        query_embedding = embed_text(query_text)
+        query_embedding = embed_text(query_text, provider=self.provider, api_key=self.api_key)
         if not query_embedding:
             print("Error: Failed to generate query embedding.")
             return {}
@@ -90,6 +96,8 @@ Answer:
 """
         # Call Gemini LLM using standard SDK
         try:
+            if not self.gemini_client:
+                raise ValueError("Gemini API Client is not initialized. Please configure a valid API key in settings.")
             response = self.gemini_client.models.generate_content(
                 model=config.VISION_MODEL,
                 contents=prompt

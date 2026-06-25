@@ -17,9 +17,13 @@ import config
 load_dotenv()
 
 
-def describe_frame_gemini(image_path: str, max_retries: int = 5, backoff_factor: float = 2.0) -> str:
+def describe_frame_gemini(image_path: str, api_key: str = None, max_retries: int = 5, backoff_factor: float = 2.0) -> str:
     """Describe an image in detail in 5-7 lines using Gemini, with exponential backoff for 429 errors."""
-    client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+    active_key = api_key or os.getenv("GEMINI_API_KEY")
+    if not active_key:
+        print("[Error] Gemini API key is missing for describe_frame.")
+        return ""
+    client = genai.Client(api_key=active_key)
     
     prompt = "Describe this video frame in less than 20 words or at most 2 sentences. Focus briefly on the main visual content, text, or action."
 
@@ -75,12 +79,13 @@ def describe_frame_ollama(image_path: str, model_name: str = None) -> str:
         return ""
 
 
-def describe_frame(image_path: str) -> str:
+def describe_frame(image_path: str, provider: str = None, api_key: str = None) -> str:
     """Unified entry point to describe an image based on the configured PROVIDER."""
-    if config.PROVIDER == "ollama":
+    active_provider = provider or config.PROVIDER
+    if active_provider == "ollama":
         return describe_frame_ollama(image_path)
     else:
-        return describe_frame_gemini(image_path)
+        return describe_frame_gemini(image_path, api_key=api_key)
         
 
 if __name__ == "__main__":
