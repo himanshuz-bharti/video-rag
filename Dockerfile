@@ -3,7 +3,7 @@ FROM python:3.12-slim
 # Force stdin, stdout, and stderr to be unbuffered to get logs in real time
 ENV PYTHONUNBUFFERED=1
 
-# Install system dependencies (ffmpeg, opencv prerequisites, and curl/certs for Ollama)
+# Install system dependencies (ffmpeg, opencv prerequisites, curl, and zstd for Ollama)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     libsm6 \
@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     curl \
     ca-certificates \
+    zstd \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Ollama inside the container
