@@ -4,7 +4,7 @@ FROM python:3.12-slim
 ENV PYTHONUNBUFFERED=1
 ENV PORT=7860
 
-# Install system dependencies (ffmpeg, opencv prerequisites, curl, and zstd for Ollama)
+# Install system dependencies (ffmpeg, opencv prerequisites, curl, zstd, and tor for proxying)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     libsm6 \
@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     zstd \
+    tor \
     && rm -rf /var/lib/apt/lists/*
 
 # Patch OpenSSL configuration to allow legacy renegotiation (prevents SSL UNEXPECTED_EOF_WHILE_READING errors with YouTube TLS servers in cloud environments)

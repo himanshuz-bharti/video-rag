@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# Start Tor local proxy to bypass datacenter IP blocks (runs as non-root user using /tmp/tor)
+echo "Starting Tor local proxy..."
+mkdir -p /tmp/tor
+tor --DataDirectory /tmp/tor --SocksPort 9050 &
+
 # Start Ollama service in background
 echo "Starting Ollama daemon..."
 ollama serve &
