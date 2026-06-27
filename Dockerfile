@@ -22,9 +22,10 @@ WORKDIR /app
 # Install uv for fast dependency resolution
 RUN pip install --no-cache-dir uv
 
-# Copy dependency definition and install only dependencies (caching layer)
+# Copy dependency definition and compile/install dependencies (caching layer)
 COPY pyproject.toml .
-RUN uv pip install --verbose --system --no-cache -r pyproject.toml
+RUN uv pip compile pyproject.toml -o requirements.txt && \
+    uv pip install --verbose --system --no-cache -r requirements.txt
 
 # Copy application source files
 COPY . .
