@@ -5,6 +5,13 @@ import sys
 from pathlib import Path
 from PIL import Image
 import imagehash
+import ssl
+
+# Bypass python SSL certificate verification globally to avoid [SSL: UNEXPECTED_EOF_WHILE_READING] crashes in restricted cloud networks (Hugging Face)
+try:
+    ssl._create_default_https_context = ssl._create_unverified_context
+except Exception:
+    pass
 
 import yt_dlp
 from google import genai
@@ -36,6 +43,7 @@ def get_video_info(url:str)->dict:
         'quiet': True,
         'no_warnings': True,
         'extract_flat': False, 
+        'nocheckcertificate': True,
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         try:
@@ -75,6 +83,7 @@ def download_video(url:str,output_dir: str)->str:
         'quiet':False,
         'no_warnings':True,
         'noplaylist':True,
+        'nocheckcertificate': True,
         'extractor_args': {
             'youtube': {
                 'player_client': ['default', '-android_sdkless']
