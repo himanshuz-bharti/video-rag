@@ -190,15 +190,13 @@ def process_video(
         # Clear previous video files, frames, and database index
         try:
             import chromadb
-            # Clear contents of mounted directories instead of deleting them to avoid "Device or resource busy" locks on Docker mounts.
-            for directory in [config.VIDEO_DIR, config.FRAMES_DIR]:
-                if directory.exists():
-                    for f in directory.iterdir():
-                        if f.is_file():
-                            try:
-                                f.unlink()
-                            except Exception:
-                                pass
+            if config.VIDEO_DIR.exists():
+                shutil.rmtree(config.VIDEO_DIR)
+            config.VIDEO_DIR.mkdir(parents=True, exist_ok=True)
+            
+            if config.FRAMES_DIR.exists():
+                shutil.rmtree(config.FRAMES_DIR)
+            config.FRAMES_DIR.mkdir(parents=True, exist_ok=True)
             
             chroma_client = chromadb.PersistentClient(path=str(config.CHROMA_DB_DIR))
             try:
@@ -354,5 +352,4 @@ if __name__ == "__main__":
     import uvicorn
     # Disable reload in production/container environments to prevent file system writes from restarting the server.
     reload = os.getenv("UVICORN_RELOAD", "false").lower() == "true"
-    port = int(os.getenv("PORT", "8000"))
-    uvicorn.run("main_web:app", host="0.0.0.0", port=port, reload=reload)
+    uvicorn.run("main_web:app", host="0.0.0.0", port=8000, reload=reload)

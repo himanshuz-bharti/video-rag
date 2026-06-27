@@ -5,27 +5,6 @@ import sys
 from pathlib import Path
 from PIL import Image
 import imagehash
-import ssl
-import socket
-
-# Bypass python SSL certificate verification globally to avoid [SSL: UNEXPECTED_EOF_WHILE_READING] crashes in restricted cloud networks (Hugging Face)
-try:
-    ssl._create_default_https_context = ssl._create_unverified_context
-except Exception:
-    pass
-
-def check_tor_proxy() -> str:
-    """Check if local Tor proxy is running on port 9050.
-    Returns SOCKS5 proxy string if active, otherwise None."""
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.settimeout(0.5)
-    try:
-        s.connect(('127.0.0.1', 9050))
-        s.close()
-        return "socks5://127.0.0.1:9050"
-    except Exception:
-        s.close()
-        return None
 
 import yt_dlp
 from google import genai
@@ -57,25 +36,7 @@ def get_video_info(url:str)->dict:
         'quiet': True,
         'no_warnings': True,
         'extract_flat': False, 
-        'nocheckcertificate': True,
-        'socket_timeout': 60.0,
-        'retries': 5,
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['ios', 'android']
-            }
-        },
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'en-us,en;q=0.5',
-            'Sec-Fetch-Mode': 'navigate',
-        }
     }
-    tor_proxy = check_tor_proxy()
-    if tor_proxy:
-        ydl_opts['proxy'] = tor_proxy
-        
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         try:
             info = ydl.extract_info(url,download=False)
@@ -114,12 +75,9 @@ def download_video(url:str,output_dir: str)->str:
         'quiet':False,
         'no_warnings':True,
         'noplaylist':True,
-        'nocheckcertificate': True,
-        'socket_timeout': 60.0,
-        'retries': 5,
         'extractor_args': {
             'youtube': {
-                'player_client': ['ios', 'android']
+                'player_client': ['default', '-android_sdkless']
             }
         },
         'http_headers': {
@@ -129,9 +87,6 @@ def download_video(url:str,output_dir: str)->str:
             'Sec-Fetch-Mode': 'navigate',
         }
     }
-    tor_proxy = check_tor_proxy()
-    if tor_proxy:
-        ydl_opts['proxy'] = tor_proxy
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
