@@ -1,3 +1,13 @@
+---
+title: Video RAG
+emoji: 🎥
+colorFrom: purple
+colorTo: blue
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # 🎥 Video RAG: Multi-Modal Video Question Answering Dashboard
 
 Video RAG is a premium, real-time Single-Page Dashboard application that allows you to download YouTube videos, extract keyframes, generate brief visual descriptions, index them in a vector database, and query the video content using Gemini or local Ollama LLMs.
