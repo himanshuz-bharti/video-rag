@@ -58,6 +58,8 @@ def get_video_info(url:str)->dict:
         'no_warnings': True,
         'extract_flat': False, 
         'nocheckcertificate': True,
+        'socket_timeout': 60.0,
+        'retries': 5,
         'extractor_args': {
             'youtube': {
                 'player_client': ['ios', 'android']
@@ -113,6 +115,8 @@ def download_video(url:str,output_dir: str)->str:
         'no_warnings':True,
         'noplaylist':True,
         'nocheckcertificate': True,
+        'socket_timeout': 60.0,
+        'retries': 5,
         'extractor_args': {
             'youtube': {
                 'player_client': ['ios', 'android']
