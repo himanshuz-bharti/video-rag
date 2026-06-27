@@ -1,4 +1,8 @@
 import os
+# If OLLAMA_HOST is set to 0.0.0.0, override it to 127.0.0.1 for the local Python client
+if os.getenv("OLLAMA_HOST") == "0.0.0.0":
+    os.environ["OLLAMA_HOST"] = "127.0.0.1"
+
 import sys
 from pathlib import Path
 from dotenv import load_dotenv

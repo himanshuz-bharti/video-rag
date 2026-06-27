@@ -462,10 +462,19 @@
                     </select>
                 </div>
                 
-                <div>
+                <div id="apiKeyContainer">
                     <label style="display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Gemini API Key</label>
                     <input type="password" id="apiKeyInput" class="input-field" placeholder="Enter your Gemini API key (AIzaSy...)" style="width: 100%; border-radius: 12px;">
                     <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.35rem;">Leave empty to fallback to server's configured environment variables.</p>
+                </div>
+
+                <div id="ollamaInstructionsContainer" style="display: none; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 12px; padding: 1rem; font-size: 0.85rem; line-height: 1.45;">
+                    <span style="display: block; font-weight: 700; color: #60A5FA; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.5px;">Local Ollama Setup</span>
+                    <ol style="margin-left: 1.25rem; color: var(--text-main); display: flex; flex-direction: column; gap: 0.35rem;">
+                        <li>Ensure the <strong>Ollama app</strong> is running on your machine.</li>
+                        <li>Pull the required vision model:<br><code style="background: rgba(0,0,0,0.3); padding: 2px 4px; border-radius: 4px; font-family: monospace;">ollama pull qwen2.5vl:3b</code></li>
+                        <li>Pull the embedding model:<br><code style="background: rgba(0,0,0,0.3); padding: 2px 4px; border-radius: 4px; font-family: monospace;">ollama pull nomic-embed-text</code></li>
+                    </ol>
                 </div>
                 
                 <button class="action-btn" id="saveSettingsBtn" style="margin-top: 0.5rem; width: 100%;">Save Configurations</button>
@@ -487,6 +496,8 @@
         const providerSelect = document.getElementById('providerSelect');
         const apiKeyInput = document.getElementById('apiKeyInput');
         const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+        const apiKeyContainer = document.getElementById('apiKeyContainer');
+        const ollamaInstructionsContainer = document.getElementById('ollamaInstructionsContainer');
         
         const pauseBtn = document.getElementById('pauseBtn');
         const resumeBtn = document.getElementById('resumeBtn');
@@ -504,9 +515,27 @@
         const modalCaption = document.getElementById('modalCaption');
         const modalClose = document.getElementById('modalClose');
 
+        function toggleProviderInputs() {
+            if (providerSelect.value === 'ollama') {
+                apiKeyContainer.style.display = 'none';
+                ollamaInstructionsContainer.style.display = 'block';
+            } else {
+                apiKeyContainer.style.display = 'block';
+                ollamaInstructionsContainer.style.display = 'none';
+            }
+        }
+
+        providerSelect.addEventListener('change', toggleProviderInputs);
+
         // Load credentials from localStorage
         providerSelect.value = localStorage.getItem('user_provider') || 'gemini';
         apiKeyInput.value = localStorage.getItem('user_api_key') || '';
+        toggleProviderInputs();
+
+        // Ask user to enter API key on load if using Gemini and key is not set
+        if (providerSelect.value === 'gemini' && !apiKeyInput.value) {
+            settingsModal.style.display = 'flex';
+        }
 
         function fetchWithHeaders(url, options = {}) {
             const headers = options.headers || {};
@@ -617,12 +646,29 @@
             appendMessage('user', query);
             queryInput.value = '';
 
+            if (emptyHistoryText) emptyHistoryText.style.display = 'none';
+
+            // Append temporary thinking bubble
+            const thinkingDiv = document.createElement('div');
+            thinkingDiv.className = 'msg assistant thinking-bubble';
+            thinkingDiv.innerHTML = `
+                <div class="bubble" style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.05); align-self: flex-start; border-radius: 18px 18px 18px 2px; max-width: 85%; width: fit-content; line-height: 1.5; padding: 1rem 1.25rem;">
+                    <div class="status-spinner" style="width: 16px; height: 16px; border-width: 2px;"></div>
+                    <span>Analyzing video context...</span>
+                </div>
+            `;
+            chatHistory.appendChild(thinkingDiv);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+
             try {
                 const response = await fetchWithHeaders('/api/query', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ query_text: query })
                 });
+
+                // Remove thinking bubble
+                thinkingDiv.remove();
 
                 if (!response.ok) {
                     const err = await response.json();
@@ -632,6 +678,8 @@
                 const data = await response.json();
                 appendMessage('assistant', data.answer, data.sources);
             } catch (err) {
+                // Ensure thinking bubble is removed in case of error
+                thinkingDiv.remove();
                 appendMessage('assistant', `Error generating response: ${err.message}`);
             } finally {
                 queryBtn.disabled = false;

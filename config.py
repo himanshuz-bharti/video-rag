@@ -14,7 +14,7 @@ EMBED_MODEL: str = "gemini-embedding-2"
 EMBED_DIM: int = 768  # Both gemini-embedding-2 and nomic-embed-text are 768-dimensional
 
 # Ollama (Local) Configuration
-OLLAMA_VISION_MODEL: str = "gemma3:4b"  # Your pulled vision model (or "llama3.2-vision")
+OLLAMA_VISION_MODEL: str = "qwen2.5vl:3b"  # Local lightweight high-performance vision model (~2.2GB)
 OLLAMA_EMBED_MODEL: str = "nomic-embed-text" # Standard high-quality local embedding model
 
 FRAME_INTERVAL_SECONDS: int = 10

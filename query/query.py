@@ -1,4 +1,8 @@
 import os
+# If OLLAMA_HOST is set to 0.0.0.0, override it to 127.0.0.1 for the local Python client
+if os.getenv("OLLAMA_HOST") == "0.0.0.0":
+    os.environ["OLLAMA_HOST"] = "127.0.0.1"
+
 import sys
 from pathlib import Path
 from dotenv import load_dotenv
@@ -94,15 +98,26 @@ Retrieved Context:
 User Question: {query_text}
 Answer:
 """
-        # Call Gemini LLM using standard SDK
+        # Call LLM based on provider
         try:
-            if not self.gemini_client:
-                raise ValueError("Gemini API Client is not initialized. Please configure a valid API key in settings.")
-            response = self.gemini_client.models.generate_content(
-                model=config.VISION_MODEL,
-                contents=prompt
-            )
-            return response.text.strip(), sources
+            if self.provider == "ollama":
+                import ollama
+                response = ollama.chat(
+                    model=config.OLLAMA_VISION_MODEL,
+                    messages=[{
+                        "role": "user",
+                        "content": prompt
+                    }]
+                )
+                return response['message']['content'].strip(), sources
+            else:
+                if not self.gemini_client:
+                    raise ValueError("Gemini API Client is not initialized. Please configure a valid API key in settings.")
+                response = self.gemini_client.models.generate_content(
+                    model=config.VISION_MODEL,
+                    contents=prompt
+                )
+                return response.text.strip(), sources
         except Exception as e:
             return f"Error calling Gemini LLM: {e}", sources
 def main():

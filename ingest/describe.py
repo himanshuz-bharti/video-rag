@@ -1,4 +1,8 @@
 import os
+# If OLLAMA_HOST is set to 0.0.0.0, override it to 127.0.0.1 for the local Python client
+if os.getenv("OLLAMA_HOST") == "0.0.0.0":
+    os.environ["OLLAMA_HOST"] = "127.0.0.1"
+
 import time
 from dotenv import load_dotenv
 from google import genai
@@ -18,7 +22,19 @@ load_dotenv()
 
 
 def describe_frame_gemini(image_path: str, api_key: str = None, max_retries: int = 5, backoff_factor: float = 2.0) -> str:
-    """Describe an image in detail in 5-7 lines using Gemini, with exponential backoff for 429 errors."""
+    """Describe the given image in **4–5 detailed sentences**. Your description should be factual and based only on what is visible in the image.
+
+Include the following details:
+
+* The overall scene or environment (indoors/outdoors, location, background, weather, lighting, etc.).
+* The number of people visible in the image.
+* For each person, describe their approximate age group, gender (if visually apparent), clothing, accessories, hairstyle, facial expression, posture, and any notable actions.
+* Mention any important objects, vehicles, animals, or landmarks present.
+* Describe the spatial arrangement of the people and objects (e.g., standing, sitting, left/right, foreground/background).
+* If any text, signs, logos, or screens are visible, mention them.
+
+Do not make assumptions or infer information that is not directly visible. If a detail is unclear, state that it is not clearly visible rather than guessing.
+ """
     active_key = api_key or os.getenv("GEMINI_API_KEY")
     if not active_key:
         print("[Error] Gemini API key is missing for describe_frame.")
@@ -57,7 +73,19 @@ def describe_frame_gemini(image_path: str, api_key: str = None, max_retries: int
 
 
 def describe_frame_ollama(image_path: str, model_name: str = None) -> str:
-    """Describe an image in detail using local Ollama vision model."""
+    """Describe the given image in **4–5 detailed sentences**. Your description should be factual and based only on what is visible in the image.
+
+Include the following details:
+
+* The overall scene or environment (indoors/outdoors, location, background, weather, lighting, etc.).
+* The number of people visible in the image.
+* For each person, describe their approximate age group, gender (if visually apparent), clothing, accessories, hairstyle, facial expression, posture, and any notable actions.
+* Mention any important objects, vehicles, animals, or landmarks present.
+* Describe the spatial arrangement of the people and objects (e.g., standing, sitting, left/right, foreground/background).
+* If any text, signs, logos, or screens are visible, mention them.
+
+Do not make assumptions or infer information that is not directly visible. If a detail is unclear, state that it is not clearly visible rather than guessing.
+."""
     if model_name is None:
         model_name = config.OLLAMA_VISION_MODEL
         

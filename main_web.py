@@ -1,4 +1,9 @@
 import os
+# If OLLAMA_HOST is set to 0.0.0.0, override it to 127.0.0.1 for the local Python client
+# since Windows prevents clients from connecting directly to the 0.0.0.0 bind address.
+if os.getenv("OLLAMA_HOST") == "0.0.0.0":
+    os.environ["OLLAMA_HOST"] = "127.0.0.1"
+
 import sys
 import shutil
 from pathlib import Path
@@ -176,11 +181,32 @@ def process_video(
     if SESSION_STATE["status"] == "processing":
         raise HTTPException(status_code=400, detail="Another video is already being processed.")
     
-    # If starting a fresh video, reset session state
+    # If starting a fresh video, reset session state and clean folders/DB
     if req.youtube_url != SESSION_STATE["youtube_url"]:
         SESSION_STATE["start_frame_ct"] = 0
         SESSION_STATE["saved_hists"] = []
         SESSION_STATE["extracted_frames"] = []
+        
+        # Clear previous video files, frames, and database index
+        try:
+            import chromadb
+            if config.VIDEO_DIR.exists():
+                shutil.rmtree(config.VIDEO_DIR)
+            config.VIDEO_DIR.mkdir(parents=True, exist_ok=True)
+            
+            if config.FRAMES_DIR.exists():
+                shutil.rmtree(config.FRAMES_DIR)
+            config.FRAMES_DIR.mkdir(parents=True, exist_ok=True)
+            
+            chroma_client = chromadb.PersistentClient(path=str(config.CHROMA_DB_DIR))
+            try:
+                chroma_client.delete_collection(name=config.COLLECTION_NAME)
+            except Exception:
+                pass
+            chroma_client.get_or_create_collection(name=config.COLLECTION_NAME)
+            print("Cleared previous video files, frames, and index for new ingestion.")
+        except Exception as clean_err:
+            print(f"Error cleaning previous session data: {clean_err}")
         
     SESSION_STATE["api_key"] = x_api_key
     SESSION_STATE["provider"] = x_provider
@@ -278,17 +304,34 @@ def cleanup_session():
                         
         # 2. Clear ChromaDB Collection
         import chromadb
-        chroma_client = chromadb.PersistentClient(path=str(config.CHROMA_DB_DIR))
         try:
-            chroma_client.delete_collection(name=config.COLLECTION_NAME)
-        except Exception:
-            pass
-            
-        # Recreate empty collection so RAG remains functional
-        chroma_client.get_or_create_collection(
-            name=config.COLLECTION_NAME,
-            embedding_function=None
-        )
+            chroma_client = chromadb.PersistentClient(path=str(config.CHROMA_DB_DIR))
+            try:
+                chroma_client.delete_collection(name=config.COLLECTION_NAME)
+            except Exception:
+                pass
+                
+            # Recreate empty collection so RAG remains functional
+            chroma_client.get_or_create_collection(
+                name=config.COLLECTION_NAME,
+                embedding_function=None
+            )
+        except Exception as db_err:
+            print(f"ChromaDB client error, database might be corrupted. Recreating: {db_err}")
+            # Database is likely locked or corrupted; delete the database directory contents directly
+            if config.CHROMA_DB_DIR.exists():
+                for f in config.CHROMA_DB_DIR.iterdir():
+                    if f.is_file():
+                        try:
+                            f.unlink()
+                        except Exception:
+                            pass
+            # Try initializing client and recreating collection again on clean slate
+            chroma_client = chromadb.PersistentClient(path=str(config.CHROMA_DB_DIR))
+            chroma_client.get_or_create_collection(
+                name=config.COLLECTION_NAME,
+                embedding_function=None
+            )
         
         # Reset Status
         SESSION_STATE = {
@@ -307,4 +350,6 @@ def cleanup_session():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main_web:app", host="0.0.0.0", port=8000, reload=True)
+    # Disable reload in production/container environments to prevent file system writes from restarting the server.
+    reload = os.getenv("UVICORN_RELOAD", "false").lower() == "true"
+    uvicorn.run("main_web:app", host="0.0.0.0", port=8000, reload=reload)

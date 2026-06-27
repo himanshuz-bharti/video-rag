@@ -11,8 +11,16 @@ from google import genai
 import cv2
 from google.genai import types
 
+import shutil
 import static_ffmpeg
-static_ffmpeg.add_paths()
+
+# Only download and configure static_ffmpeg if ffmpeg is not already in the system PATH.
+# This prevents redundant download hangs inside containerized environments where ffmpeg is preinstalled.
+if not shutil.which("ffmpeg"):
+    try:
+        static_ffmpeg.add_paths()
+    except Exception as e:
+        print(f"Warning: static_ffmpeg failed to configure paths: {e}")
 
 # Add the parent directory to the Python path to import root-level config module
 parent_dir = Path(__file__).resolve().parent.parent
@@ -67,11 +75,18 @@ def download_video(url:str,output_dir: str)->str:
         'quiet':False,
         'no_warnings':True,
         'noplaylist':True,
-        # 'writesubtitles':True,
-        # 'writeautomaticsub':True,
-        # 'subtitleslangs':['en'],
-        # 'subtitlesformat':'vtt',
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['default', '-android_sdkless']
+            }
+        },
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-us,en;q=0.5',
+            'Sec-Fetch-Mode': 'navigate',
         }
+    }
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -123,78 +138,120 @@ def extract_video_frame(video_path: Path, start_frame_ct: int = 0, existing_hist
         raise RuntimeError(f"Failed to open video file: {video_path}")
 
     fps = cap.get(cv2.CAP_PROP_FPS)
-    print(f"FPS: {fps}")
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    print(f"Total frames: {total_frames}")
-    dur = total_frames / fps if fps > 0 else 0
-    print(f"Duration: {dur}")
+    print(f"Video FPS: {fps}, Total Frames: {total_frames}")
+
+    # Determine target number of keyframes
+    target_keyframes = 10
     
-    # We sample a candidate frame every 2 seconds and verify structural changes
-    eval_interval = max(1, int(2 * fps)) 
-    print(f"Evaluating Image hash every {eval_interval} frames (~2.0 seconds)")
-
+    # Divide video into 10 equal intervals
+    interval_size = max(1, total_frames // target_keyframes)
     extracted = []
-    frame_ct = 0
     saved_hists = list(existing_hists) if existing_hists is not None else []
-    prev_hist = None
-    reached_end = True
 
-    # If resuming from a checkpoint, set the frame position
-    if start_frame_ct > 0:
-        cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame_ct)
-        frame_ct = start_frame_ct
-        print(f"Resuming frame extraction from frame {start_frame_ct}")
+    # If resuming, we only extract keyframes in intervals that start after start_frame_ct
+    for i in range(target_keyframes):
+        # Calculate the frame range for this interval
+        start_range = i * interval_size
+        end_range = min(start_range + interval_size, total_frames)
 
-    while True:
-        # Check if pause event is set by the web server
+        # If resuming from checkpoint, skip intervals we already processed
+        if start_range < start_frame_ct:
+            continue
+
+        # Check if pause event is set
         if pause_event is not None and pause_event.is_set():
-            print(f"Extraction paused by user event at frame {frame_ct}")
-            reached_end = False
+            print(f"Extraction paused by user event at interval {i}")
             break
 
-        ret, frame = cap.read()
-        if not ret:
+        # Check if we already have 10 keyframes (limit)
+        if len(saved_hists) >= 10:
             break
 
-        if frame_ct % eval_interval == 0:
-            if len(saved_hists) >= 10:
-                print("Reached maximum limit of 10 keyframes. Stopping extraction.")
+        # Scan this interval starting from the middle to find a bright, high-quality frame
+        # (This avoids transition boundaries at the edges of the interval)
+        mid_frame = start_range + (interval_size // 2)
+        
+        # We try to find a valid frame starting from mid_frame, scanning up to end_range
+        cap.set(cv2.CAP_PROP_POS_FRAMES, mid_frame)
+        current_frame_idx = mid_frame
+        
+        saved_frame = False
+        skipped_due_to_similarity = False
+        while current_frame_idx < end_range:
+            ret, frame = cap.read()
+            if not ret:
                 break
-
+                
+            # Check brightness of frame to avoid black screens
             h, w = frame.shape[:2]
-            
-            # Downscale frame for fast computation and robustness
             small_w = 256
             small_h = int(h * (small_w / w))
             frame_small = cv2.resize(frame, (small_w, small_h))
             
-            # Convert to HSV color space
-            hsv = cv2.cvtColor(frame_small, cv2.COLOR_BGR2HSV)
+            gray = cv2.cvtColor(frame_small, cv2.COLOR_BGR2GRAY)
+            mean_brightness = gray.mean()
             
-            # Calculate 2D Hue-Saturation histogram (16 bins each)
-            current_hist = cv2.calcHist([hsv], [0, 1], None, [16, 16], [0, 180, 0, 256])
-            cv2.normalize(current_hist, current_hist)
-
-            should_save = False
-            max_sim_saved = 0.0
-            sim_prev = 1.0
-
-            if not saved_hists:
-                # Always save the first frame
-                should_save = True
-            else:
-                # Compare against all previously saved histograms to enforce global uniqueness
-                max_sim_saved = max(cv2.compareHist(current_hist, saved_hist, cv2.HISTCMP_CORREL) for saved_hist in saved_hists)
-                sim_prev = cv2.compareHist(current_hist, prev_hist, cv2.HISTCMP_CORREL)
-                if max_sim_saved < config.HIST_THRESHOLD_SAVED and sim_prev < config.HIST_THRESHOLD_PREV:
+            if mean_brightness >= 15.0:
+                # Compute Perceptual Hash (pHash) to evaluate structural similarity
+                pil_img = Image.fromarray(cv2.cvtColor(frame_small, cv2.COLOR_BGR2RGB))
+                current_hash = imagehash.phash(pil_img)
+                
+                # Check similarity against all previously saved keyframes
+                should_save = False
+                min_distance = 64
+                
+                if not saved_hists:
                     should_save = True
+                else:
+                    min_distance = min(current_hash - saved_hash for saved_hash in saved_hists)
+                    if min_distance > config.HASH_THRESHOLD:
+                        should_save = True
+                    else:
+                        skipped_due_to_similarity = True
+                
+                if should_save:
+                    # Found a valid bright and visually unique frame! Save it.
+                    timestamp = current_frame_idx / fps
+                    frame_filename = f"{current_frame_idx:06d}.jpg"
+                    frame_path = config.FRAMES_DIR / frame_filename
 
-            if should_save:
-                timestamp = frame_ct / fps
-                frame_filename = f"{frame_ct:06d}.jpg"
+                    save_frame = frame
+                    if w > 768:
+                        scale = 768 / w
+                        save_frame = cv2.resize(frame, (768, int(h * scale)))
+
+                    cv2.imwrite(str(frame_path), save_frame, [int(cv2.IMWRITE_JPEG_QUALITY), config.JPEG_QUALITY])
+                    saved_hists.append(current_hash)
+
+                    print(f"Interval {i+1}/{target_keyframes}: Saved keyframe {current_frame_idx} at {timestamp:.2f}s (brightness: {mean_brightness:.2f}, min pHash distance: {min_distance})")
+                    
+                    frame_info = {
+                        "frame_path": str(frame_path),
+                        "timestamp": timestamp,
+                        "frame_ct": current_frame_idx
+                    }
+                    extracted.append(frame_info)
+                    
+                    if on_frame_extracted_callback is not None:
+                        on_frame_extracted_callback(frame_info)
+                        
+                    saved_frame = True
+                    break  # Move to the next interval
+                
+            current_frame_idx += 1
+
+        # Fallback: if all frames in the second half of the interval were black/dark (and NOT skipped due to similarity),
+        # just save the middle frame anyway so we don't miss the interval completely
+        if not saved_frame and not skipped_due_to_similarity:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, mid_frame)
+            ret, frame = cap.read()
+            if ret:
+                timestamp = mid_frame / fps
+                frame_filename = f"{mid_frame:06d}.jpg"
                 frame_path = config.FRAMES_DIR / frame_filename
 
-                # Scale frame to a max width of 768px for storage
+                h, w = frame.shape[:2]
                 save_frame = frame
                 if w > 768:
                     scale = 768 / w
@@ -202,28 +259,29 @@ def extract_video_frame(video_path: Path, start_frame_ct: int = 0, existing_hist
 
                 cv2.imwrite(str(frame_path), save_frame, [int(cv2.IMWRITE_JPEG_QUALITY), config.JPEG_QUALITY])
                 
-                print(f"Saved keyframe {frame_ct} at {timestamp:.2f}s (Max Sim Saved: {max_sim_saved:.3f}, Sim Prev: {sim_prev:.3f}) - Dimensions: {save_frame.shape[1]}x{save_frame.shape[0]}")
+                # Save computed hash as fallback
+                small_w = 256
+                small_h = int(h * (small_w / w))
+                frame_small = cv2.resize(frame, (small_w, small_h))
+                pil_img = Image.fromarray(cv2.cvtColor(frame_small, cv2.COLOR_BGR2RGB))
+                current_hash = imagehash.phash(pil_img)
+                saved_hists.append(current_hash)
+
+                print(f"Interval {i+1}/{target_keyframes} (Fallback): Saved keyframe {mid_frame} at {timestamp:.2f}s")
                 
                 frame_info = {
                     "frame_path": str(frame_path),
                     "timestamp": timestamp,
-                    "frame_ct": frame_ct
+                    "frame_ct": mid_frame
                 }
                 extracted.append(frame_info)
                 
                 if on_frame_extracted_callback is not None:
                     on_frame_extracted_callback(frame_info)
-                
-                saved_hists.append(current_hist)
-
-            prev_hist = current_hist
-                
-                
-        frame_ct += 5
 
     cap.release()
-    print(f"Extracted {len(extracted)} keyframes in this run. Total in memory: {len(saved_hists)}") 
-    return extracted, saved_hists, frame_ct, reached_end
+    print(f"Extracted {len(extracted)} keyframes in this run. Total: {len(saved_hists)}") 
+    return extracted, saved_hists, total_frames, True
             
 if __name__ == "__main__":
     downloaded_file = download_video('https://youtu.be/frXG1mo_OBQ?si=I7P6e5fRTj7a1zHD', config.VIDEO_DIR)

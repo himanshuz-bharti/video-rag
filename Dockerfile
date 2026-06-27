@@ -1,5 +1,8 @@
 FROM python:3.12-slim
 
+# Force stdin, stdout, and stderr to be unbuffered to get logs in real time
+ENV PYTHONUNBUFFERED=1
+
 # Install system dependencies (ffmpeg and opencv prerequisites)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
@@ -16,7 +19,7 @@ RUN pip install --no-cache-dir uv
 
 # Copy dependency definition and install only dependencies (caching layer)
 COPY pyproject.toml .
-RUN uv pip install --system --no-cache -r pyproject.toml
+RUN uv pip install --verbose --system --no-cache -r pyproject.toml
 
 # Copy application source files
 COPY . .
