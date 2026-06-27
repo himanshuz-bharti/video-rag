@@ -9,3 +9,8 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Video RAG local data
+videos/
+frames/
+chroma_db/

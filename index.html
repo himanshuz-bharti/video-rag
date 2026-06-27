@@ -737,6 +737,8 @@
             
             statusPollInterval = setInterval(async () => {
                 const status = await checkCurrentStatus();
+                // Only clear the polling interval on explicit terminal pipeline states.
+                // We deliberately ignore 'network_error' so polling survives brief CPU bottlenecks/timeouts.
                 if (status === 'success' || status === 'error' || status === 'idle' || status === 'paused') {
                     clearInterval(statusPollInterval);
                 }
@@ -757,14 +759,19 @@
                     data.extracted_frames.forEach(src => {
                         const card = document.createElement('div');
                         card.className = 'source-card';
+                        
+                        // Guard against undefined or missing timestamp fields
+                        const rawTimestamp = typeof src.timestamp === 'number' ? src.timestamp : parseFloat(src.timestamp) || 0.0;
+                        const timestampFormatted = rawTimestamp.toFixed(1);
+                        
                         card.innerHTML = `
                             <img src="${src.image_url}" alt="Frame ${src.frame_ct}">
                             <div class="source-card-details">
-                                <span class="source-card-timestamp">${src.timestamp.toFixed(1)}s</span>
+                                <span class="source-card-timestamp">${timestampFormatted}s</span>
                                 <span>Frame ${src.frame_ct}</span>
                             </div>
                         `;
-                        card.addEventListener('click', () => openLightbox(src.image_url, `Frame ${src.frame_ct} at ${src.timestamp.toFixed(1)}s`));
+                        card.addEventListener('click', () => openLightbox(src.image_url, `Frame ${src.frame_ct} at ${timestampFormatted}s`));
                         extractionGallery.appendChild(card);
                     });
                 } else {
@@ -840,7 +847,7 @@
                 }
             } catch (err) {
                 console.error('Failed to retrieve status:', err);
-                return 'error';
+                return 'network_error';
             }
         }
 
