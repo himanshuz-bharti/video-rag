@@ -16,6 +16,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zstd \
     && rm -rf /var/lib/apt/lists/*
 
+# Patch OpenSSL configuration to allow legacy renegotiation (prevents SSL UNEXPECTED_EOF_WHILE_READING errors with YouTube TLS servers in cloud environments)
+RUN sed -i '/\[system_default_sect\]/a Options = UnsafeLegacyRenegotiation,UnsafeLegacyServerConnect' /etc/ssl/openssl.cnf
+
 # Install Ollama inside the container
 RUN curl -fsSL https://ollama.com/install.sh | sh
 

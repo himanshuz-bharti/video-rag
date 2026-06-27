@@ -44,6 +44,17 @@ def get_video_info(url:str)->dict:
         'no_warnings': True,
         'extract_flat': False, 
         'nocheckcertificate': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['ios', 'android']
+            }
+        },
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-us,en;q=0.5',
+            'Sec-Fetch-Mode': 'navigate',
+        }
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         try:
@@ -86,7 +97,7 @@ def download_video(url:str,output_dir: str)->str:
         'nocheckcertificate': True,
         'extractor_args': {
             'youtube': {
-                'player_client': ['default', '-android_sdkless']
+                'player_client': ['ios', 'android']
             }
         },
         'http_headers': {
