@@ -2,6 +2,7 @@ FROM python:3.12-slim
 
 # Force stdin, stdout, and stderr to be unbuffered to get logs in real time
 ENV PYTHONUNBUFFERED=1
+ENV PORT=7860
 
 # Install system dependencies (ffmpeg, opencv prerequisites, curl, and zstd for Ollama)
 RUN apt-get update && apt-get install -y --no-install-recommends \
